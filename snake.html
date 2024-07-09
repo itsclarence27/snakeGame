@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <script src="jquery.js"></script>
+    <style>
+      #score {
+        margin-bottom: 0px;
+      }
+    </style>
+  </head>
+  <body>
+    <p id="score">Score:</p>
+    <canvas id="canvas" width="200" height="200"></canvas>
+
+    <script>
+      //defining canvas
+      let canvas = document.getElementById("canvas");
+      let ctx = canvas.getContext("2d");
+      let width = canvas.width;
+      let height = canvas.height;
+
+      //defining size of blocks
+      let blockSize = 10;
+      let widthInBlocks = width / blockSize;
+      let heightInBlocks = height / blockSize;
+
+      //game score
+      let score = 0;
+      let enableGame = false;
+
+      // creating border
+      let drawBorder = function () {
+        ctx.fillStyle = "Gray";
+        ctx.textBaseline = "center";
+        ctx.fillRect(0, 0, width, blockSize);
+        ctx.fillRect(0, height - blockSize, width, blockSize);
+        ctx.fillRect(0, 0, blockSize, height);
+        ctx.fillRect(width - blockSize, 0, blockSize, height);
+      };
+
+      // creating circle
+      let Circle = function (x, y, radius, fillCircle) {
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2, false);
+        if (fillCircle) {
+          ctx.fill();
+        } else {
+          ctx.stroke();
+        }
+      };
+
+      // showing the score
+      let drawScore = function () {
+        $("#score").text("Score: " + score);
+      };
+
+      //a function that can stop the game after being game over
+      let gameOverText = function () {
+        enableGame = false;
+        clearInterval(intervalID);
+        ctx.font = "30px comic sans MS";
+        ctx.fillStyle = "black";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("Game Over", width / 2, height / 2);
+        ctx.font = "15px comic sans MS";
+        ctx.fillText('press "space" to try again', width / 2, height / 2 + 20);
+      };
+
+      //constructor for defining block in grid
+      let Block = function (col, row) {
+        this.col = col;
+        this.row = row;
+      };
+
+      //creating square in particular postion using the block constructor
+      Block.prototype.drawSquare = function (color) {
+        let x = this.col * blockSize;
+        let y = this.row * blockSize;
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, blockSize, blockSize);
+      };
+
+      //drawing an apple
+      Block.prototype.drawCircle = function (color) {
+        let centerX = this.col * blockSize + blockSize / 2;
+        let centerY = this.row * blockSize + blockSize / 2;
+        ctx.fillStyle = color;
+        Circle(centerX, centerY, blockSize / 2, true);
+      };
+
+      //for checking if the same position colide
+      Block.prototype.equal = function (otherBlock) {
+        return this.col === otherBlock.col && this.row === otherBlock.row;
+      };
+
+      //FOR THE SNAKE
+      // a constructor for the snake
+      let Snake = function () {
+        this.segments = [new Block(7, 5), new Block(6, 5), new Block(5, 5)]; // we used the "Block" constror here to create a block
+        this.direction = "right";
+        this.nextDirection = "right";
+      };
+
+      // using the constructor "snake" we draw a snake block
+      Snake.prototype.draw = function () {
+        for (let i = 0; i < this.segments.length; i++) {
+          this.segments[i].drawSquare("blue");
+        }
+      };
+
+      //moving snake
+      Snake.prototype.move = function () {
+        let head = this.segments[0];
+        let newHead;
+
+        this.direction = this.nextDirection;
+
+        if (this.direction === "right") {
+          newHead = new Block(head.col + 1, head.row);
+        } else if (this.direction === "left") {
+          newHead = new Block(head.col - 1, head.row);
+        } else if (this.direction === "up") {
+          newHead = new Block(head.col, head.row - 1);
+        } else if (this.direction === "down") {
+          newHead = new Block(head.col, head.row + 1);
+        }
+
+        if (this.checkCollision(newHead)) {
+          gameOverText();
+          return;
+        }
+        this.segments.unshift(newHead);
+
+        if (newHead.equal(apple.position)) {
+          score++;
+          apple.move();
+        } else {
+          this.segments.pop();
+        }
+      };
+
+      //checking if the snake collide to itself or meet the wall
+      Snake.prototype.checkCollision = function (head) {
+        let leftCollision = head.col === 0;
+        let rightCollision = head.col === widthInBlocks - 1;
+        let topCollision = head.row === 0;
+        let bottomCollision = head.row === widthInBlocks - 1;
+
+        let wallCollision =
+          leftCollision || rightCollision || topCollision || bottomCollision;
+
+        let selfCollision = false;
+
+        for (let i = 0; i < this.segments.length; i++) {
+          if (head.equal(this.segments[i])) {
+            selfCollision = true;
+          }
+        }
+
+        return wallCollision || selfCollision;
+      };
+
+      // checking the invalid moves
+      Snake.prototype.setDirection = function (newDirection) {
+        if (this.direction === "right" && newDirection === "left") {
+          return;
+        } else if (this.direction === "left" && newDirection === "right") {
+          return;
+        } else if (this.direction === "up" && newDirection === "down") {
+          return;
+        } else if (this.direction === "down" && newDirection === "up") {
+          return;
+        }
+
+        this.nextDirection = newDirection;
+      };
+
+      //FOR THE APPLE
+      // creating apple constructor that can be use for our apple
+      let Apple = function () {
+        this.position = new Block(10, 10); //assigning a new "Block" object so we can use the position of new block and the property/method of it
+      };
+
+      //randomizing the position of a block or the apple
+      // and also checking if the apple is on the snake
+      Apple.prototype.move = function () {
+        let appleDrop;
+        do {
+          appleDrop = false;
+          let randomCol = Math.floor(Math.random() * (widthInBlocks - 2) + 1);
+          let randomRow = Math.floor(Math.random() * (widthInBlocks - 2) + 1);
+
+          this.position = new Block(randomCol, randomRow);
+
+          for (let i = 0; i < snake.segments.length; i++) {
+            if (snake.segments[i].equal(this.position)) {
+              appleDrop = true;
+              break;
+            }
+          }
+        } while (appleDrop);
+      };
+
+      //for drawing the apple
+      Apple.prototype.draw = function () {
+        this.position.drawCircle("limegreen");
+      };
+
+      //initialize the main variable for the game
+      let intervalID;
+      let snake;
+      let apple;
+
+      // creating the function that will use for interval to run the game
+      let gameLoop = function () {
+        ctx.clearRect(0, 0, height, width);
+        drawBorder();
+        drawScore();
+        snake.move();
+        snake.draw();
+        apple.draw();
+      };
+
+      //running the game
+      let startGame = function () {
+        score = 0;
+        enableGame = true;
+        snake = new Snake();
+        apple = new Apple();
+
+        intervalID = setInterval(gameLoop, 100);
+      };
+
+      //for our keycodes directions name
+      var directions = {
+        37: "left",
+        38: "up",
+        39: "right",
+        40: "down",
+      };
+
+      //keys for reseting the game
+      let tryAgainKeys = {
+        32: "space",
+      };
+
+      startGame();
+
+      //event that will occur if you press any keys
+      $("html").keydown(function (event) {
+        let newDirection = directions[event.keyCode];
+        let continueGame = tryAgainKeys[event.keyCode];
+        if (newDirection !== undefined) {
+          snake.setDirection(newDirection);
+        } else if (continueGame !== undefined && enableGame === false) {
+          startGame();
+        }
+      });
+    </script>
+  </body>
+</html>
